@@ -1,23 +1,14 @@
-"""空当接龙（FreeCell）—— pygame 界面。
-
-操作：
-- 鼠标左键点选一组牌（高亮），再点目标位置放下；也可直接按住拖动
-- 双击一张牌：若可收进回收位则自动收牌
-- 右键 / Esc：取消选择
-- 快捷键：N 新局，U 撤销，A 自动收牌
-"""
-
 import os
 import sys
 
-# 允许在任意目录下运行：python <freecell目录>/main.py
+# 允许在任意目录下运行
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pygame
 
 from game import Card, FreeCell, RANKS, SUITS, SUIT_SYMBOLS
-
-# ---------- 布局常量 ----------
+# 全局变量
+# 布局常量
 W, H = 1080, 700
 MARGIN = 14
 CARD_W, CARD_H = 78, 110
@@ -27,7 +18,7 @@ COL_Y0 = TOP_Y + CARD_H + 34          # 列区起始 y
 ROW_STEP = 26                         # 列内每张牌的垂直步进
 STATUS_Y = H - 30                     # 底部状态栏 y
 
-# ---------- 颜色 ----------
+# 颜色
 BG_TOP = (9, 96, 52)                 # 背景渐变：上（亮绿）
 BG_BOTTOM = (3, 46, 27)              # 背景渐变：下（墨绿）
 SLOT_BORDER = (6, 66, 38)
@@ -59,7 +50,7 @@ FONT_CANDIDATES = [
     (r"C:\Windows\Fonts\simsun.ttc", None),                            # 宋体
     (r"C:\Windows\Fonts\arial.ttf",  r"C:\Windows\Fonts\arialbd.ttf"),  # Arial
 ]
-# 花色符号专用字体：Segoe UI Symbol 的 ♠♥♦♣ 字形远比雅黑精致（Win10/11 自带）
+# 花色符号专用字体：Segoe UI Symbol
 SUIT_FONT_PATHS = [
     r"C:\Windows\Fonts\SegUISym.ttf",        # Segoe UI Symbol
     r"C:\Windows\Fonts\segui-sym.ttf",
@@ -67,7 +58,6 @@ SUIT_FONT_PATHS = [
 
 
 def _load_font(size, bold=False):
-    """直接按路径加载中文字体（绕开 pygame 的字体枚举，兼容性更稳）。"""
     for normal, bold_path in FONT_CANDIDATES:
         path = bold_path if (bold and bold_path) else normal
         if os.path.exists(path):
@@ -79,7 +69,6 @@ def _load_font(size, bold=False):
 
 
 def _load_suit_font(size):
-    """加载花色符号专用字体；找不到时退回中文候选字体。"""
     for path in SUIT_FONT_PATHS:
         if os.path.exists(path):
             try:
@@ -89,10 +78,9 @@ def _load_suit_font(size):
     return _load_font(size)
 
 
-# ---------- 预渲染资源（一次性构建，每帧直接 blit） ----------
+# 预渲染资源
 
 def _make_gradient_bg():
-    """深绿→墨绿垂直渐变背景。"""
     strip = pygame.Surface((1, 2))
     strip.set_at((0, 0), BG_TOP)
     strip.set_at((0, 1), BG_BOTTOM)
@@ -100,7 +88,6 @@ def _make_gradient_bg():
 
 
 def _make_shadow_surface():
-    """牌投影：圆角矩形先缩小再放大，模拟柔和模糊。"""
     surf = pygame.Surface((CARD_W + 8, CARD_H + 8), pygame.SRCALPHA)
     rect = pygame.Rect(0, 0, surf.get_width(), surf.get_height())
     pygame.draw.rect(surf, (0, 0, 0, SHADOW_ALPHA), rect, border_radius=12)
@@ -109,11 +96,10 @@ def _make_shadow_surface():
 
 
 def _render_card_surface(rank_font, suit_big_font, suit_small_font, card):
-    """渲染经典扑克牌面：左上角点数+花色、右下角旋转角标、中央大花色。"""
     surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
     rect = surf.get_rect()
 
-    # 暖白圆角底 + 双层描边
+    # 暖白圆角底、双层描边
     pygame.draw.rect(surf, CARD_BG, rect, border_radius=10)
     pygame.draw.rect(surf, CARD_BORDER, rect, width=2, border_radius=10)
     pygame.draw.rect(surf, CARD_BORDER_LIGHT, rect.inflate(-4, -4), width=1, border_radius=8)
@@ -122,14 +108,14 @@ def _render_card_surface(rank_font, suit_big_font, suit_small_font, card):
     symbol = SUIT_SYMBOLS[card.suit]
     rank = "10" if card.rank == "T" else card.rank
 
-    # 中央大花色（带柔和投影；偏下放置，避免与角标重叠）
+    # 中央大花色
     big = suit_big_font.render(symbol, True, color)
     big_shadow = suit_big_font.render(symbol, True, (0, 0, 0, 46))
     cx, cy = CARD_W // 2, CARD_H // 2 + 4
     surf.blit(big_shadow, (cx - big.get_width() // 2 + 1, cy - big.get_height() // 2 + 2))
     surf.blit(big, (cx - big.get_width() // 2, cy - big.get_height() // 2))
 
-    # 角标：左上角点数在上、花色在下（花色按点数宽度居中）
+    # 角标
     rank_img = rank_font.render(rank, True, color)
     suit_img = suit_small_font.render(symbol, True, color)
     corner_w = max(rank_img.get_width(), suit_img.get_width())
@@ -175,7 +161,7 @@ class GameUI:
         self.last_click = None          # (pos, loc, time_ms)
         self.hover_btn = None
 
-    # ---------- 坐标 ----------
+    # 坐标
     def free_rect(self, i):
         return pygame.Rect(MARGIN + i * GAP, TOP_Y, CARD_W, CARD_H)
 
@@ -253,7 +239,7 @@ class GameUI:
         start, _ = self.game.column_run(i)
         return loc if idx >= start else None
 
-    # ---------- 交互 ----------
+    # 交互
     def try_drop(self, from_loc, to_loc, n=None):
         if to_loc is None:
             return False
@@ -299,7 +285,7 @@ class GameUI:
         loc = self.loc_at(pos)
         clickable = self.clickable_card_loc(pos)
 
-        # 双击：自动收牌
+        # 双击自动收牌
         if clickable is not None and self.last_click is not None:
             last_pos, last_loc, last_t = self.last_click
             if last_loc == clickable and time_ms - last_t <= DOUBLE_CLICK_MS \
@@ -310,7 +296,7 @@ class GameUI:
                     return
         self.last_click = (pos, clickable, time_ms)
 
-        # 已有选中：尝试落位 / 取消
+        # 已有选中，尝试落位/取消
         if self.selected is not None:
             from_loc, group = self.selected
             if loc is not None and loc != from_loc:
@@ -365,7 +351,7 @@ class GameUI:
         elif key == pygame.K_ESCAPE:
             self.selected = self.drag = None
 
-    # ---------- 渲染 ----------
+    # 渲染
     def draw_slot(self, surf, rect, label=None, label_font=None):
         """凹陷式空槽：深底 + 内圈高光 + 中央半透明花色。"""
         pygame.draw.rect(surf, SLOT_BORDER, rect, border_radius=10)
@@ -429,7 +415,7 @@ class GameUI:
             if not col:
                 self.draw_slot(surf, pygame.Rect(x, COL_Y0, CARD_W, CARD_H))
 
-        # 右上角工具面板（标题 + 步数 + 竖排按钮）
+        # 右上角工具面板
         panel = self.panel_rect()
         p = pygame.Surface(panel.size, pygame.SRCALPHA)
         p.fill((16, 68, 43, 218))
@@ -440,7 +426,7 @@ class GameUI:
         steps = btn_font.render(f"步数 {len(self.game.history)}", True, (196, 218, 204))
         surf.blit(steps, (panel.right - 12 - steps.get_width(), panel.y + 10))
 
-        # 按钮（圆角 + 悬停高亮 + 顶部高光）
+        # 按钮
         for key, rect, label in self.btn_rects():
             hover = self.hover_btn == key
             bg = BTN_BG_HOVER if hover else BTN_BG
@@ -454,7 +440,7 @@ class GameUI:
                 shine.fill((255, 255, 255, 90))
                 surf.blit(shine, (rect.x + 3, rect.y + 3))
 
-        # 状态栏（半透明底条 + 文字）
+        # 状态栏
         bar = pygame.Rect(0, STATUS_Y - 6, W, H - STATUS_Y + 6)
         strip = pygame.Surface(bar.size, pygame.SRCALPHA)
         strip.fill(STATUS_BG)
@@ -467,7 +453,7 @@ class GameUI:
             img = status_font.render(text, True, TEXT_LIGHT)
         surf.blit(img, (MARGIN, STATUS_Y))
 
-        # 拖拽中的牌置顶（带投影）
+        # 拖拽中的牌置顶
         if self.drag is not None:
             from_loc, group, origin = self.drag
             mx, my = pygame.mouse.get_pos()
