@@ -1,14 +1,6 @@
-"""空当接龙（FreeCell）游戏规则 —— 纯逻辑模块，不依赖 pygame，便于单元测试。
-
-位置用 (kind, i) 表示，kind ∈ {'col', 'free', 'foundation'}，i 为下标。
-- col: 8 个主列（每列一叠面朝上的牌）
-- free: 4 个自由单元格（每格最多 1 张）
-- foundation: 4 个回收位（每种花色从 A 到 K 升序）
-"""
-
 import random
 
-SUITS = "SHDC"                     # ♠ ♥ ♦ ♣
+SUITS = "SHDC"
 RANKS = "A23456789TJQK"
 SUIT_SYMBOLS = {"S": "\u2660", "H": "\u2665", "D": "\u2666", "C": "\u2663"}
 RED_SUITS = {"H", "D"}
@@ -64,9 +56,9 @@ class FreeCell:
             self.columns[i % self.NUM_COLS].append(card)
         self.free = [None] * self.NUM_FREE
         self.foundations = [[] for _ in range(self.NUM_FOUNDATIONS)]
-        self.history = []           # 撤销栈：[(group, from_loc, to_loc), ...]
+        self.history = []           # 撤销栈
 
-    # ---------- 规则查询 ----------
+    # 规则查询
     def can_move_count(self):
         """一次最多可移动的牌数 = (空自由单元格数 + 1) * 2^空列数。"""
         empty_free = sum(1 for c in self.free if c is None)
@@ -74,11 +66,6 @@ class FreeCell:
         return (empty_free + 1) * (2 ** empty_cols)
 
     def column_run(self, i):
-        """列 i 底部起最长合法叠牌序列（点数降序且红黑交替）。
-
-        返回 (start_index, group)，group 即 columns[i][start:]，
-        且长度不超过当前可移动上限。
-        """
         col = self.columns[i]
         n = len(col)
         if n == 0:
@@ -92,11 +79,6 @@ class FreeCell:
         return start, col[start:]
 
     def can_select(self, loc):
-        """该位置当前可拖动的一组牌（自下而上的顺序）；不可拖返回 []。
-
-        - col: 从底部起的合法叠牌序列
-        - free / foundation: 顶部那张（仅 1 张）
-        """
         kind, i = loc
         if kind == "free":
             c = self.free[i]
@@ -118,7 +100,6 @@ class FreeCell:
         return top.color != bottom_card.color and top.value == bottom_card.value + 1
 
     def _foundation_valid_placement(self, i, card):
-        """card 能否放入回收位 i（花色须与 i 对应，点数递增）。"""
         f = self.foundations[i]
         if not f:
             return card.value == 0                    # 只收 A
@@ -140,7 +121,6 @@ class FreeCell:
         raise ValueError(f"未知位置类型: {kind}")
 
     def valid_move(self, from_loc, to_loc):
-        """from_loc 当前可拖的整组牌能否移动到 to_loc。"""
         group = self.can_select(from_loc)
         if not group:
             return False
@@ -148,10 +128,6 @@ class FreeCell:
 
     # ---------- 执行 ----------
     def move(self, from_loc, to_loc, n=None):
-        """尝试移动并记录到撤销栈；成功返回 True。
-
-        n 为 None 时移动 from_loc 当前可拖的整组；否则只移动其中顶部 n 张。
-        """
         group = self.can_select(from_loc)
         if not group:
             return False
@@ -185,7 +161,6 @@ class FreeCell:
             self.columns[i].extend(group)
 
     def undo(self):
-        """撤销上一步；没有可撤销的返回 False。"""
         if not self.history:
             return False
         group, from_loc, to_loc = self.history.pop()
@@ -195,7 +170,6 @@ class FreeCell:
 
     # ---------- 自动收牌 / 胜利 / 死局 ----------
     def collectible(self):
-        """当前能直接放入 foundation 的来源位置列表（free 与各列顶部）。"""
         locs = []
         for i in range(self.NUM_FREE):
             c = self.free[i]
@@ -211,7 +185,6 @@ class FreeCell:
         return locs
 
     def auto_collect(self):
-        """把当前所有能直接放入回收位的牌依次收走，返回收掉的张数。"""
         n = 0
         while True:
             locs = self.collectible()
@@ -227,10 +200,6 @@ class FreeCell:
         return sum(len(f) for f in self.foundations) == DECK_SIZE
 
     def any_move(self):
-        """是否存在能推进局面的合法移动（用于死局提示）。
-
-        不计入：从回收位拖出、移入空列（总是合法但不推进）、原地移动。
-        """
         sources = []
         for i in range(self.NUM_FREE):
             if self.free[i] is not None:
